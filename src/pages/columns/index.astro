@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getColumns, getPublishedPosts } from '../../lib/posts';
+
+const [columns, published] = await Promise.all([getColumns(), getPublishedPosts()]);
+const publishedIds = new Set(published.map((p) => p.id));
+
+const items = columns.map((column) => ({
+  column,
+  count: column.data.posts.filter((ref) => publishedIds.has(ref.id)).length,
+  // 介绍首段作摘录
+  excerpt: (column.body ?? '').trim().split(/\n\s*\n/)[0] ?? '',
+}));
+---
+
+<Base title="专栏">
+  <h1 class="page-title">专栏</h1>
+  {items.length === 0 && <p class="page-intro">还没有开设专栏。</p>}
+  <ul class="post-list">
+    {
+      items.map(({ column, count, excerpt }) => (
+        <li>
+          <a href={`/columns/${column.id}/`}>{column.data.title}</a>
+          <span class="count">（{count} 篇）</span>
+          {excerpt && <p class="brief">{excerpt}</p>}
+        </li>
+      ))
+    }
+  </ul>
+</Base>

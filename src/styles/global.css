@@ -1,0 +1,814 @@
+/* ---------- 基调：一张近白的纸，黑体正文 ---------- */
+
+/* 破折号（U+2014）与省略号（U+2026）交给中文字体渲染：
+   拉丁字体的 em-dash 短于 1em，连写「——」中间会断开；
+   中文字体的破折号按全角设计，成对相连 */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  src: local('PingFang SC'), local('Microsoft YaHei'), local('Noto Sans CJK SC');
+  unicode-range: U+2014, U+2026;
+}
+
+:root {
+  --paper: #fcfcf9;       /* 近白纸色，铺满整页 */
+  --paper-inset: #f3f2ec; /* 纸上的浅色块（代码、窄屏批注） */
+  --ink: #333230;
+  --ink-muted: #8a8880;
+  --ink-note: #75726a;    /* 批注墨色 */
+  --accent: #9c5333;      /* 朱色：题字竖线、批注标记、印章 */
+  --accent-tint: #f4e6dc; /* 朱色的极浅底，用于配对高亮 */
+  --rule: #e5e3da;        /* 分隔线 */
+  /* 拉丁字符走 Inter（为屏幕阅读设计，相当于英文里的黑体）；中文按平台取原生黑体：
+     苹方（macOS/iOS）→ MiSans / HarmonyOS Sans（若装有）→
+     微软雅黑（Windows）→ 思源黑体（Android/Linux） */
+  --sans: 'Inter Variable', Inter, 'PingFang SC', MiSans,
+    'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei',
+    'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+  /* 代码：优先中文恰为两倍英文宽（2:1）的等宽字体，未安装则退到纯拉丁等宽 */
+  --mono: 'Maple Mono NF CN', 'Maple Mono CN', 'Sarasa Mono SC', 'Sarasa Term SC',
+    'Noto Sans Mono CJK SC', 'Fira Code', ui-monospace, Consolas, 'Courier New', monospace;
+  --measure: 42rem;       /* 正文一行约 42 个汉字（rem 基准 = 正文字号） */
+  --note-width: 17em;     /* 浮动回退时以边注自身字号计 */
+  --note-gap: 3.2rem;
+  --leading: 1.7;         /* 全站统一行高：数值型，保证加粗不撑行 */
+  --header-h: 3.2rem;     /* 常驻页眉高度 */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--paper);
+  font-size: 17px; /* rem 基准，供边注栏定位用 */
+  /* 为滚动条恒久预留槽位：有无滚动条页面宽度不变，页眉不再被挤动 */
+  scrollbar-gutter: stable;
+  /* Firefox 自定义滚动条 */
+  scrollbar-color: #cfccc0 transparent;
+}
+
+/* 自定义滚动条（Chromium/Safari）：略宽、方便点击，浅墨色圆头 */
+::-webkit-scrollbar {
+  width: 14px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cfccc0;
+  border: 4px solid var(--paper);
+  border-radius: 7px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: var(--leading);
+  letter-spacing: 0.03em;
+  /* 字母间距拉开后，词间距同步加大，保证英文单词边界清晰 */
+  word-spacing: 0.1em;
+  -webkit-font-smoothing: antialiased;
+  /* 全角标点始终占一个字宽，不压缩——竖向如方格纸般对齐（Chromium 123+） */
+  text-spacing-trim: space-all;
+  /* 极淡的纸纹噪点，随页面固定，soft-light 压到若有若无 */
+  background: var(--paper)
+    url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAACFJREFUeNpiZGBg4GegAsBlCD8TqSYNQg2Mo6FEBAAIMACdPABtrSW/IQAAAABJRU5ErkJggg==')
+    repeat fixed;
+  background-blend-mode: soft-light;
+}
+
+.page {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 72em;
+  margin: 0 auto;
+  padding: 2.8em 2em 3em;
+}
+
+/* 内容主栏整体居中；批注栏从旁侧探出，不占版心 */
+.page > main {
+  flex: 1 0 auto;
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+/* 链接：常态无下划线，悬停出主题朱色下划线 */
+a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+a:hover {
+  border-bottom-color: var(--accent);
+}
+
+time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 从空白处按下鼠标拖动不产生选区：整体默认不可选，
+   文字区域逐个放行——选区只会从文字上开始 */
+main {
+  user-select: none;
+}
+
+main :is(.prose, .post-header, .page-intro, .page-title, .year-heading,
+    .post-list li, .compact-list li, .tag-cloud li, .post-series-nav a,
+    .notes-col .sidenote) {
+  user-select: text;
+}
+
+/* ---------- 页眉：常驻顶端；站名贴左上角，导航贴右上角 ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4em 2em;
+  min-height: var(--header-h);
+  padding: 0 1.6em;
+  background: var(--paper);
+  user-select: none;
+}
+
+/* 题字：淡墨、中等字重——只是落款，不与正文争视线 */
+.site-title {
+  margin: 0;
+  font-size: 1.02em;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.site-title a {
+  display: inline-block;
+  position: relative;
+  padding-bottom: 0.3em;
+  border-bottom: none;
+}
+
+.site-title a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0.2em; /* 抵消末字符后的字距 */
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(to right, var(--accent) 1.5em, var(--rule) 1.5em);
+  transition: background 0.3s ease;
+}
+
+.site-title a:hover {
+  border-bottom: none;
+}
+
+.site-title a:hover::after {
+  background: var(--accent);
+}
+
+/* 导航：竖线分隔（与字高等高），整块可点；悬停转朱色 */
+.site-header nav {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.site-header nav a {
+  position: relative;
+  padding: 0.3em 1em;
+  font-size: 0.92em;
+  color: var(--ink-muted);
+  border-bottom: none;
+}
+
+.site-header nav a + a::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 1em;
+  border-left: 1px solid var(--rule);
+}
+
+.site-header nav a:hover {
+  color: var(--accent);
+  border-bottom: none;
+}
+
+.site-footer {
+  margin-top: 5em;
+  font-size: 0.82em;
+  color: var(--ink-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 2em;
+  user-select: none;
+}
+
+.rss-link {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- 首页 ---------- */
+
+.home-intro {
+  max-width: var(--measure);
+  margin: -0.6em 0 2.5em;
+}
+
+.home-intro p {
+  margin: 0;
+  color: var(--ink-note);
+}
+
+/* ---------- 页面标题、列表 ---------- */
+
+.page-title {
+  font-size: 1.45em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  margin: 0 0 1.2em;
+}
+
+.page-intro {
+  max-width: var(--measure);
+  color: var(--ink-note);
+  margin: -0.6em 0 2em;
+}
+
+.post-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: var(--measure);
+}
+
+.post-list li {
+  margin-bottom: 1.7em;
+}
+
+.post-list time {
+  display: block;
+  font-size: 0.78em;
+  color: var(--ink-muted);
+}
+
+.post-list a {
+  font-size: 1.08em;
+  font-weight: 600;
+}
+
+.post-list .brief {
+  margin: 0.25em 0 0;
+  font-size: 0.88em;
+  color: var(--ink-note);
+}
+
+.draft-badge {
+  display: inline-block;
+  margin-left: 0.5em;
+  padding: 0 0.4em;
+  font-size: 0.72em;
+  font-weight: 400;
+  color: var(--accent);
+  border: 1px solid currentColor;
+  vertical-align: 0.15em;
+}
+
+/* 紧凑列表（归档、专栏目录）；日期定宽数字格式，标题起点对齐 */
+.compact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: var(--measure);
+}
+
+.compact-list li {
+  display: flex;
+  gap: 1.2em;
+  align-items: baseline;
+  padding: 0.3em 0;
+  border-bottom: 1px dashed var(--rule);
+}
+
+.compact-list time {
+  flex: none;
+  font-size: 0.82em;
+  color: var(--ink-muted);
+  font-family: var(--mono);
+}
+
+.year-heading {
+  font-size: 1.12em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  margin: 2.2em 0 0.7em;
+  color: var(--ink-note);
+}
+
+/* 页面大标题之后的第一个年份组，不需要额外的上间距 */
+.page-title + section .year-heading,
+.page-title + .year-heading {
+  margin-top: 0.2em;
+}
+
+/* 标签云 */
+.tag-cloud {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: var(--measure);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em 1.4em;
+}
+
+.tag-cloud .count {
+  font-size: 0.8em;
+  color: var(--ink-muted);
+}
+
+.tag {
+  font-size: 0.85em;
+  color: var(--ink-note);
+  border-bottom: none;
+}
+
+.tag::before {
+  content: '#';
+  color: var(--ink-muted);
+}
+
+.tag:hover {
+  color: var(--accent);
+}
+
+/* ---------- 文章页 ---------- */
+
+.post {
+  position: relative; /* 边注栏的定位基准 */
+}
+
+/* 装饰条带：通栏，标题衬于其上；首屏时条带下缘到屏幕一半
+   （50vh 减去常驻页眉高）。frontmatter 的 banner 指定图片，
+   缺省为纯主题色 */
+.post-band {
+  height: calc(50vh - var(--header-h));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-color: var(--accent);
+  background-size: cover;
+  background-position: center;
+  user-select: none;
+}
+
+/* 标题区衬在条带下部：文字用纸色，衬底渐变保证可读 */
+.post-band .post-header {
+  width: 100%;
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 2.5em 2em 1.1em;
+  background: linear-gradient(to top, rgba(20, 12, 8, 0.38), transparent);
+  color: #faf7f2;
+  user-select: text;
+}
+
+.post-band .post-meta {
+  color: rgba(250, 247, 242, 0.75);
+}
+
+.post-band .tag {
+  color: rgba(250, 247, 242, 0.75);
+}
+
+.post-band .tag::before {
+  color: rgba(250, 247, 242, 0.5);
+}
+
+.post-band .tag:hover,
+.post-band a:hover {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
+.post-band .draft-badge {
+  color: #f4e6dc;
+}
+
+/* 无 banner 的空白形态：纸面本色，标题回到墨色 */
+.post-band.plain {
+  background: none;
+}
+
+.post-band.plain .post-header {
+  background: none;
+  color: var(--ink);
+}
+
+.post-band.plain .post-meta,
+.post-band.plain .tag {
+  color: var(--ink-muted);
+}
+
+.post-band.plain .tag:hover,
+.post-band.plain a:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.post-band.plain .draft-badge {
+  color: var(--accent);
+}
+
+.post-header {
+  margin-bottom: 0;
+}
+
+.post-header h1 {
+  font-size: 1.9em;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+  margin: 0 0 0.4em;
+}
+
+.post-meta {
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--ink-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2em 1.2em;
+  align-items: baseline;
+}
+
+.post-meta .count {
+  margin-left: 0.4em;
+  font-size: 0.9em;
+}
+
+/* 文章页的标签串：紧凑相连 */
+.post-tags {
+  display: inline-flex;
+  gap: 0.45em;
+}
+
+/* 文章页顶部阅读进度条（骑在常驻页眉之上） */
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 30;
+}
+
+/* 回到顶部（页面超过 1.5 屏且滚过 1 屏后出现） */
+.back-top {
+  position: fixed;
+  right: 1.4em;
+  bottom: 1.4em;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.6em;
+  height: 2.6em;
+  padding: 0;
+  color: var(--ink-muted);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.back-top.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.back-top:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.post-series-nav {
+  max-width: var(--measure);
+  margin-top: 3em;
+  padding-top: 1em;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  gap: 2em;
+  font-size: 0.92em;
+}
+
+/* 文章页脚：协议声明 */
+.post-footer {
+  max-width: var(--measure);
+  margin-top: 2.6em;
+  padding-top: 1em;
+  border-top: 1px solid var(--rule);
+  font-size: 0.8em;
+  color: var(--ink-muted);
+}
+
+.post-footer a {
+  border-bottom-color: var(--rule);
+}
+
+/* ---------- 正文（.prose） ---------- */
+
+.prose {
+  max-width: var(--measure);
+}
+
+/* 行距收紧、段距拉开，不用首行缩进。
+   左对齐而非两端对齐：两端对齐会逐行拉伸字距，破坏上下行的字格；
+   左对齐下纯中文行按「1 字宽 + 恒定字距」排布，字字入格 */
+.prose p {
+  margin: 0 0 1.15em;
+  text-indent: 0;
+  text-align: left;
+}
+
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: var(--leading);
+  margin: 1.9em 0 0.7em;
+}
+
+.prose h2 {
+  font-size: 1.25em;
+}
+
+.prose h3 {
+  font-size: 1.1em;
+}
+
+.prose h4 {
+  font-size: 1em;
+}
+
+/* 引文文字刚好退一个字宽（1em），与上下行的第二个字对齐 */
+.prose blockquote {
+  margin: 0 0 1.15em;
+  padding: 0 0 0 calc(1em - 3px);
+  border-left: 3px solid var(--rule);
+  color: var(--ink-note);
+}
+
+.prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* 列表：文字退一个字宽入格（有序留两格给序号），与上下文对齐 */
+.prose ul,
+.prose ol {
+  margin: 0 0 1.15em;
+  padding-left: 1em;
+}
+
+.prose ol {
+  padding-left: 2em;
+}
+
+.prose li {
+  margin: 0.25em 0;
+}
+
+.prose li::marker {
+  color: var(--ink-muted);
+}
+
+.prose input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-bottom: 0;
+}
+
+.prose img {
+  max-width: 100%;
+  display: block;
+  margin: 1.4em auto;
+}
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.prose hr {
+  border: none;
+  text-align: center;
+  margin: 2.2em 0;
+  line-height: 1;
+}
+
+.prose hr::after {
+  content: '· · ·';
+  color: var(--ink-muted);
+  letter-spacing: 0.4em;
+}
+
+.prose code {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  letter-spacing: 0; /* 等宽字体保持网格对齐 */
+  background: var(--paper-inset);
+  padding: 0.1em 0.35em;
+}
+
+/* 代码块（脚本包裹一层 .code-block 以放置复制按钮） */
+.code-block {
+  position: relative;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 0.55em;
+  right: 0.55em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2em;
+  height: 2em;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.45);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.copy-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.copy-btn.copied {
+  color: #3c7a3c;
+  border-color: #3c7a3c;
+}
+
+/* 代码块：深色底 + 行号 */
+.prose pre {
+  border: none;
+  padding: 1em 1.2em;
+  margin: 0 0 1.15em;
+  line-height: 1.55;
+  letter-spacing: 0;
+  overflow-x: auto;
+}
+
+.prose pre code {
+  background: none;
+  padding: 0;
+  display: block;
+  counter-reset: line;
+}
+
+.prose pre code .line {
+  counter-increment: line;
+}
+
+.prose pre code .line::before {
+  content: counter(line);
+  display: inline-block;
+  width: 2em;
+  margin-right: 1.4em;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.28);
+  user-select: none;
+}
+
+/* shiki 末尾的空行不显示行号 */
+.prose pre code .line:last-child:empty {
+  display: none;
+}
+
+.prose table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  margin: 0 0 1.15em;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--rule);
+  padding: 0.3em 0.8em;
+}
+
+.prose th {
+  background: var(--paper-inset);
+  font-weight: 600;
+}
+
+/* ---------- 边注（康奈尔右栏） ---------- */
+
+/* 占位标记「^」：占一个全角字宽，随行基线，不影响行高；
+   与批注一并排除在文字选区外，拖选整段复制时不带批注 */
+.sidenote-mark {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: default;
+  user-select: none;
+  transition: background-color 0.1s ease;
+}
+
+.sidenote-mark.active {
+  background-color: var(--accent-tint);
+}
+
+.sidenote {
+  float: right;
+  clear: right;
+  width: var(--note-width);
+  margin-right: calc(-1 * (var(--note-width) + var(--note-gap)));
+  margin-bottom: 1.1em;
+  font-size: 0.82em;
+  line-height: var(--leading);
+  color: var(--ink-note);
+  text-indent: 0;
+  text-align: left;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+/* 宽屏时脚本把边注搬进文章末尾的独立右栏（.notes-col）：
+   与正文在 DOM 上彻底分离，从正文划选不会扫到批注；
+   逐条按「^」标记所在行的纵坐标绝对定位。
+   正文居中后批注探到版心右外侧 */
+.notes-col .sidenote {
+  float: none;
+  position: absolute;
+  left: calc(100% + var(--note-gap));
+  width: 14rem;
+  margin: 0;
+}
+
+.sidenote.active {
+  color: var(--ink);
+  background-color: var(--accent-tint);
+  box-shadow: 0 0 0 5px var(--accent-tint);
+}
+
+/* ---------- 窄屏最低限度降级：边注收到段落之后 ---------- */
+
+@media (max-width: 78em) {
+  .page {
+    padding: 2em 1.6em 2.5em;
+  }
+
+  .sidenote {
+    float: none;
+    display: block;
+    width: auto;
+    margin: 0.7em 0 0.4em;
+    padding: 0.4em 0.9em;
+    background: var(--paper-inset);
+    border-left: 3px solid var(--rule);
+    text-align: left;
+  }
+
+  .sidenote.active {
+    box-shadow: none;
+    border-left-color: var(--accent);
+  }
+}

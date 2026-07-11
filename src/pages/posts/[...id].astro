@@ -1,0 +1,18 @@
+---
+import { render } from 'astro:content';
+import Post from '../../layouts/Post.astro';
+import { getPublishedPosts, getColumnContext } from '../../lib/posts';
+
+export async function getStaticPaths() {
+  const posts = await getPublishedPosts();
+  return posts.map((post) => ({ params: { id: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const columnCtx = await getColumnContext(post.id);
+---
+
+<Post post={post} columnCtx={columnCtx}>
+  <Content />
+</Post>

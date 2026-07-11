@@ -1,0 +1,23 @@
+---
+import { formatDate, type Post } from '../lib/posts';
+
+interface Props {
+  posts: Post[];
+  showBrief?: boolean;
+}
+
+const { posts, showBrief = true } = Astro.props;
+---
+
+<ul class="post-list">
+  {
+    posts.map((post) => (
+      <li>
+        <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date)}</time>
+        <a href={`/posts/${post.id}/`}>{post.data.title}</a>
+        {post.data.draft && <span class="draft-badge">草稿</span>}
+        {showBrief && post.data.brief && <p class="brief">{post.data.brief}</p>}
+      </li>
+    ))
+  }
+</ul>

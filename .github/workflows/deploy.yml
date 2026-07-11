@@ -1,0 +1,41 @@
+# 推送到 main 分支后自动构建并部署到 GitHub Pages。
+#
+# 使用前：
+# 1. 仓库 Settings → Pages → Source 选 "GitHub Actions"
+# 2. astro.config.mjs 里把 site 改成实际地址：
+#    - 用户页 https://<user>.github.io           → site 填它即可
+#    - 项目页 https://<user>.github.io/<repo>    → site 填它，并加 base: '/<repo>'
+#
+# 若改用 Cloudflare Pages：不需要本文件，在 CF 控制台连接仓库，
+# 构建命令 npm run build，输出目录 dist 即可。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build with Astro
+        uses: withastro/action@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

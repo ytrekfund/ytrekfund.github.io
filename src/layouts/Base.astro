@@ -1,0 +1,220 @@
+---
+import '@fontsource-variable/inter';
+import '../styles/global.css';
+import { SITE_TITLE } from '../consts';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** 首页用：站名显示完整题句，页脚显示 RSS */
+  home?: boolean;
+}
+
+const { title, description, home = false } = Astro.props;
+const pageTitle = title ? `${title} · ${SITE_TITLE}` : SITE_TITLE;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{pageTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate" type="application/rss+xml" title={SITE_TITLE} href="/rss.xml" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-title"><a href="/">{SITE_TITLE}</a></div>
+      <nav>
+        <a href="/columns/">专栏</a>
+        <a href="/tags/">标签</a>
+        <a href="/archive/">归档</a>
+        <a href="/about/">关于</a>
+      </nav>
+    </header>
+    <slot name="band" />
+    <div class="page">
+      <main>
+        <slot />
+      </main>
+      {
+        home && (
+          <footer class="site-footer">
+            <a class="rss-link" href="/rss.xml" aria-label="RSS 订阅">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="5" cy="19" r="2.2" />
+                <path d="M3 9.6v3.1c4.6 0 8.3 3.7 8.3 8.3h3.1C14.4 14.7 9.3 9.6 3 9.6Z" />
+                <path d="M3 3.5v3.1C10.6 6.6 16.8 12.8 16.8 21h3.1C19.9 11.1 12.9 3.5 3 3.5Z" />
+              </svg>
+            </a>
+          </footer>
+        )
+      }
+    </div>
+    <script>
+      // 代码块一键复制（剪贴板图标，常显）
+      const copyIcon =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      const checkIcon =
+        '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>';
+
+      for (const pre of document.querySelectorAll('.prose pre')) {
+        const wrap = document.createElement('div');
+        wrap.className = 'code-block';
+        pre.replaceWith(wrap);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'copy-btn';
+        btn.setAttribute('aria-label', '复制代码');
+        btn.innerHTML = copyIcon;
+        btn.addEventListener('click', async () => {
+          const text = pre.querySelector('code')?.innerText ?? pre.innerText;
+          let ok = true;
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {
+            // 兜底：旧剪贴板 API
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            ok = document.execCommand('copy');
+            ta.remove();
+          }
+          btn.innerHTML = ok ? checkIcon : copyIcon;
+          btn.classList.toggle('copied', ok);
+          setTimeout(() => {
+            btn.innerHTML = copyIcon;
+            btn.classList.remove('copied');
+          }, 1500);
+        });
+        wrap.append(pre, btn);
+      }
+
+      // 图片不可拖拽
+      for (const img of document.querySelectorAll('img')) {
+        img.draggable = false;
+      }
+
+      // 文章页顶部阅读进度条
+      if (document.querySelector('article.post')) {
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar';
+        document.body.appendChild(bar);
+        const updateProgress = () => {
+          const h = document.documentElement;
+          const max = h.scrollHeight - h.clientHeight;
+          bar.style.width = max > 0 ? `${(h.scrollTop / max) * 100}%` : '0%';
+        };
+        document.addEventListener('scroll', updateProgress, { passive: true });
+        window.addEventListener('resize', updateProgress);
+        updateProgress();
+      }
+
+      // 回到顶部：页面超过 1.5 屏时启用，滚过 1 屏后浮现
+      {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'back-top';
+        btn.setAttribute('aria-label', '回到顶部');
+        btn.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
+        btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+        document.body.appendChild(btn);
+        const updateBackTop = () => {
+          const h = document.documentElement;
+          const show = h.scrollHeight > h.clientHeight * 1.5 && h.scrollTop > h.clientHeight;
+          btn.classList.toggle('visible', show);
+        };
+        document.addEventListener('scroll', updateBackTop, { passive: true });
+        window.addEventListener('resize', updateBackTop);
+        updateBackTop();
+      }
+
+      // ---- 边注：配对高亮 + 宽屏独立右栏 ----
+      // 「^」标记与边注按段内顺序配对；宽屏时把边注搬进文章末尾的
+      // .notes-col（与正文 DOM 分离，划选正文不会带上批注），并按
+      // 标记所在行的纵坐标逐条定位、依序避让
+      const article = document.querySelector('article.post');
+      const prose = article?.querySelector('.prose');
+      if (article && prose) {
+        interface Pair {
+          mark: HTMLElement;
+          note: HTMLElement;
+          homeParent: HTMLElement;
+        }
+        const pairs: Pair[] = [];
+        for (const block of prose.querySelectorAll('p, li')) {
+          const marks = [...block.querySelectorAll<HTMLElement>('.sidenote-mark')];
+          const notes = [...block.children].filter((c): c is HTMLElement =>
+            c.classList.contains('sidenote')
+          );
+          marks.forEach((mark, i) => {
+            const note = notes[i];
+            if (!note) return;
+            pairs.push({ mark, note, homeParent: block as HTMLElement });
+            const toggle = (on: boolean) => () => {
+              mark.classList.toggle('active', on);
+              note.classList.toggle('active', on);
+            };
+            for (const el of [mark, note]) {
+              el.addEventListener('mouseenter', toggle(true));
+              el.addEventListener('mouseleave', toggle(false));
+            }
+          });
+        }
+
+        if (pairs.length) {
+          const col = document.createElement('aside');
+          col.className = 'notes-col';
+          const wide = window.matchMedia('(min-width: 78em)');
+          let migrated = false;
+
+          const layout = () => {
+            if (wide.matches && !migrated) {
+              article.appendChild(col);
+              for (const p of pairs) col.appendChild(p.note);
+              migrated = true;
+            } else if (!wide.matches && migrated) {
+              for (const p of pairs) {
+                p.note.style.top = '';
+                p.homeParent.appendChild(p.note);
+              }
+              col.remove();
+              article.style.minHeight = '';
+              migrated = false;
+            }
+            if (migrated) {
+              const articleTop = article.getBoundingClientRect().top;
+              let lastBottom = -Infinity;
+              for (const p of pairs) {
+                const desired = p.mark.getBoundingClientRect().top - articleTop;
+                const top = Math.max(desired, lastBottom);
+                p.note.style.top = `${top}px`;
+                lastBottom = top + p.note.offsetHeight + 14;
+              }
+              // 批注是绝对定位、不占文档流：把文章撑到能容下最后一条，
+              // 免得批注垂出文章底部、压过页脚
+              article.style.minHeight = `${Math.ceil(lastBottom)}px`;
+            }
+          };
+
+          layout();
+          wide.addEventListener('change', layout);
+          let raf = 0;
+          window.addEventListener('resize', () => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(layout);
+          });
+          // 字体加载完成后行位会变，重排一次
+          document.fonts?.ready.then(layout);
+        }
+      }
+    </script>
+  </body>
+</html>

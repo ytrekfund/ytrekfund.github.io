@@ -1,0 +1,84 @@
+---
+import Base from './Base.astro';
+import { formatDate, type Post, type ColumnContext } from '../lib/posts';
+
+interface Props {
+  post: Post;
+  columnCtx: ColumnContext | null;
+}
+
+const { post, columnCtx } = Astro.props;
+
+// 常见协议自动配链接；其余按纯文本展示
+const LICENSE_URLS: Record<string, string> = {
+  'CC BY-NC-SA 4.0': 'https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh-hans',
+  'CC BY-NC 4.0': 'https://creativecommons.org/licenses/by-nc/4.0/deed.zh-hans',
+  'CC BY-SA 4.0': 'https://creativecommons.org/licenses/by-sa/4.0/deed.zh-hans',
+  'CC BY 4.0': 'https://creativecommons.org/licenses/by/4.0/deed.zh-hans',
+  'CC0': 'https://creativecommons.org/publicdomain/zero/1.0/deed.zh-hans',
+};
+const license = post.data.license.trim();
+const showLicense = license.toLowerCase() !== 'none';
+const licenseUrl = LICENSE_URLS[license];
+---
+
+<Base title={post.data.title} description={post.data.brief}>
+  <div
+    slot="band"
+    class={`post-band${post.data.banner ? '' : ' plain'}`}
+    style={post.data.banner ? `background-image: url('${post.data.banner}')` : undefined}
+  >
+    <header class="post-header">
+      <h1>{post.data.title}</h1>
+      <p class="post-meta">
+        <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date)}</time>
+        {
+          columnCtx && (
+            <span>
+              专栏 · <a href={`/columns/${columnCtx.column.id}/`}>{columnCtx.column.data.title}</a>
+              <span class="count">{columnCtx.index + 1}/{columnCtx.total}</span>
+            </span>
+          )
+        }
+        {
+          post.data.tags.length > 0 && (
+            <span class="post-tags">
+              {post.data.tags.map((tag) => (
+                <a class="tag" href={`/tags/${tag}/`}>{tag}</a>
+              ))}
+            </span>
+          )
+        }
+        {post.data.draft && <span class="draft-badge">草稿</span>}
+      </p>
+    </header>
+  </div>
+  <article class="post">
+    <div class="prose">
+      <slot />
+    </div>
+
+    {
+      columnCtx && (columnCtx.prev || columnCtx.next) && (
+        <nav class="post-series-nav">
+          {columnCtx.prev ? <a href={`/posts/${columnCtx.prev.id}/`}>上一篇：{columnCtx.prev.data.title}</a> : <span />}
+          {columnCtx.next ? <a href={`/posts/${columnCtx.next.id}/`}>下一篇：{columnCtx.next.data.title}</a> : <span />}
+        </nav>
+      )
+    }
+
+    {
+      showLicense && (
+        <footer class="post-footer">
+          本文采用
+          {licenseUrl ? (
+            <a href={licenseUrl} rel="license noopener" target="_blank">{license}</a>
+          ) : (
+            <span>{license}</span>
+          )}
+          协议{license.includes('NC') && '，转载请注明出处，禁止商用'}。
+        </footer>
+      )
+    }
+  </article>
+</Base>

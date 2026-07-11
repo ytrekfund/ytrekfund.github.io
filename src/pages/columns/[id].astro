@@ -1,0 +1,37 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { getColumns, getPublishedPosts, formatDate } from '../../lib/posts';
+
+export async function getStaticPaths() {
+  const columns = await getColumns();
+  return columns.map((column) => ({ params: { id: column.id }, props: { column } }));
+}
+
+const { column } = Astro.props;
+const { Content } = await render(column);
+
+const published = await getPublishedPosts();
+const byId = new Map(published.map((p) => [p.id, p]));
+// 按专栏声明的连载顺序，滤掉未发布的
+const posts = column.data.posts.map((ref) => byId.get(ref.id)).filter((p) => p !== undefined);
+---
+
+<Base title={`专栏：${column.data.title}`}>
+  <h1 class="page-title">{column.data.title}</h1>
+  <div class="prose">
+    <Content />
+  </div>
+  <h2 class="year-heading">目录（{posts.length} 篇）</h2>
+  <ol class="compact-list">
+    {
+      posts.map((post) => (
+        <li>
+          <time datetime={post.data.date.toISOString()}>{formatDate(post.data.date)}</time>
+          <a href={`/posts/${post.id}/`}>{post.data.title}</a>
+          {post.data.draft && <span class="draft-badge">草稿</span>}
+        </li>
+      ))
+    }
+  </ol>
+</Base>
